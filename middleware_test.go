@@ -3,6 +3,7 @@ package slogutils
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -51,13 +52,116 @@ func TestMiddleware__WithColor(t *testing.T) {
 		t.Fatalf("expected %d lines, got %d lines", len(expected), len(actual))
 	}
 	for i := range expected {
-		// ignore time key
-		if !strings.Contains(actual[i], expected[i][1:]) {
-			t.Errorf("expected %q, got %q", expected[i], actual[i])
-		}
 		if !strings.Contains(actual[i], colorPrefix[i]) {
 			t.Errorf("expected %q, got %q", colorPrefix[i], actual[i])
+		} else {
+			var actualObj, expectedObj map[string]interface{}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(actual[i], colorPrefix[i])), &actualObj); err != nil {
+				t.Fatalf("failed to unmarshal actual %q: %s", actual[i], err)
+			}
+			if err := json.Unmarshal([]byte(expected[i]), &expectedObj); err != nil {
+				t.Fatalf("failed to unmarshal expected %q: %s", expected[i], err)
+			}
+			delete(actualObj, "time")
+			if !jsonEqual(actualObj, expectedObj) {
+				t.Errorf("expected %q, got %q", expected[i], actual[i])
+			}
 		}
 	}
 	t.Log(result)
+}
+
+func TestMiddleware__WithRecordTransformer(t *testing.T) {
+	color.NoColor = true
+
+	buf := new(bytes.Buffer)
+	middleware := NewMiddleware(
+		slog.NewJSONHandler,
+		MiddlewareOptions{
+			RecordTransformerFuncs: []RecordTransformerFunc{
+				DefaultAttrs(slog.String("log_category", "general")),
+				DropAttrs("secrets"),
+			},
+			Writer: buf,
+			HandlerOptions: &slog.HandlerOptions{
+				Level: slog.LevelInfo,
+			},
+		},
+	)
+	logger := slog.New(middleware)
+	ctx := With(context.Background(), slog.Int64("request_id", 12))
+	logger.WarnCtx(ctx, "foo")
+	logger.ErrorCtx(ctx, "bar", "secrets", "HIDDEN_VALUE")
+	logger.DebugCtx(ctx, "baz")
+	logger.InfoCtx(ctx, "buzz", slog.String("log_category", "special"))
+	logger.WarnCtx(ctx, "buzz")
+	result := buf.String()
+	expected := []string{
+		`{"level":"WARN","msg":"foo","request_id":12, "log_category": "general"}`,
+		`{"level":"ERROR","msg":"bar","request_id":12, "log_category": "general"}`,
+		`{"level":"INFO","msg":"buzz","request_id":12, "log_category": "special"}`,
+		`{"level":"WARN","msg":"buzz","request_id":12, "log_category": "general"}`,
+	}
+	actual := strings.Split(result, "\n")
+	if len(expected) != len(actual)-1 {
+		t.Fatalf("expected %d lines, got %d lines", len(expected), len(actual))
+	}
+
+	for i := range expected {
+		var actualObj, expectedObj map[string]interface{}
+		if err := json.Unmarshal([]byte(actual[i]), &actualObj); err != nil {
+			t.Fatalf("failed to unmarshal actual %q: %s", actual[i], err)
+		}
+		if err := json.Unmarshal([]byte(expected[i]), &expectedObj); err != nil {
+			t.Fatalf("failed to unmarshal expected %q: %s", expected[i], err)
+		}
+		delete(actualObj, "time")
+		if !jsonEqual(actualObj, expectedObj) {
+			t.Errorf("expected %q, got %q", expected[i], actual[i])
+		}
+	}
+	t.Log(result)
+}
+
+func jsonEqual(a, b map[string]interface{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if !jsonEqualValue(v, b[k]) {
+			return false
+		}
+	}
+	return true
+}
+
+func jsonEqualValue(a, b interface{}) bool {
+	switch a := a.(type) {
+	case map[string]interface{}:
+		b, ok := b.(map[string]interface{})
+		if !ok {
+			return false
+		}
+		return jsonEqual(a, b)
+	case []interface{}:
+		b, ok := b.([]interface{})
+		if !ok {
+			return false
+		}
+		return jsonEqualSlice(a, b)
+	default:
+		return a == b
+	}
+}
+
+func jsonEqualSlice(a, b []interface{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !jsonEqualValue(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
 }

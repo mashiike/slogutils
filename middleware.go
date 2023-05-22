@@ -10,6 +10,45 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+type RecordTransformerFunc func(slog.Record) slog.Record
+
+func DefaultAttrs(args ...any) func(slog.Record) slog.Record {
+	attrs := argsToAttrs(args)
+	return func(r slog.Record) slog.Record {
+		exits := make(map[string]bool, len(attrs))
+		r.Attrs(func(a slog.Attr) bool {
+			exits[a.Key] = true
+			return true
+		})
+		notExits := make([]slog.Attr, 0, len(attrs))
+		for _, a := range attrs {
+			if !exits[a.Key] {
+				notExits = append(notExits, a)
+			}
+		}
+		r.AddAttrs(notExits...)
+		return r
+	}
+}
+
+func DropAttrs(keys ...string) func(slog.Record) slog.Record {
+	return func(r slog.Record) slog.Record {
+		attrs := make([]slog.Attr, 0, len(keys))
+		r.Attrs(func(a slog.Attr) bool {
+			for _, key := range keys {
+				if a.Key == key {
+					return true
+				}
+			}
+			attrs = append(attrs, a)
+			return true
+		})
+		c := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
+		c.AddAttrs(attrs...)
+		return c
+	}
+}
+
 type ModifierFunc func([]byte) []byte
 
 func Color(attr ...color.Attribute) ModifierFunc {
@@ -39,16 +78,18 @@ func (w *modifierWriter) SetModifierFunc(f ModifierFunc) {
 }
 
 type MiddlewareOptions struct {
-	ModifierFuncs  map[slog.Level]ModifierFunc
-	Writer         io.Writer
-	HandlerOptions *slog.HandlerOptions
+	ModifierFuncs          map[slog.Level]ModifierFunc
+	RecordTransformerFuncs []RecordTransformerFunc
+	Writer                 io.Writer
+	HandlerOptions         *slog.HandlerOptions
 }
 
 type Middleware struct {
-	modifierFuncs map[slog.Level]ModifierFunc
-	h             slog.Handler
-	w             *modifierWriter
-	mu            sync.Mutex
+	modifierFuncs          map[slog.Level]ModifierFunc
+	recordTransformerFuncs []RecordTransformerFunc
+	h                      slog.Handler
+	w                      *modifierWriter
+	mu                     sync.Mutex
 }
 
 func NewMiddleware[H slog.Handler](f func(io.Writer, *slog.HandlerOptions) H, opts MiddlewareOptions) *Middleware {
@@ -58,9 +99,10 @@ func NewMiddleware[H slog.Handler](f func(io.Writer, *slog.HandlerOptions) H, op
 	w := &modifierWriter{w: opts.Writer}
 	h := f(w, opts.HandlerOptions)
 	return &Middleware{
-		modifierFuncs: opts.ModifierFuncs,
-		h:             h,
-		w:             w,
+		modifierFuncs:          opts.ModifierFuncs,
+		recordTransformerFuncs: opts.RecordTransformerFuncs,
+		h:                      h,
+		w:                      w,
 	}
 }
 
@@ -69,6 +111,9 @@ func (m *Middleware) Handle(ctx context.Context, record slog.Record) error {
 	h := m.h
 	if attrs, ok := attrsFromContext(ctx); ok {
 		h = h.WithAttrs(attrs)
+	}
+	for _, f := range m.recordTransformerFuncs {
+		record = f(record)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -84,11 +129,14 @@ func (m *Middleware) Clone() *Middleware {
 	for k, v := range m.modifierFuncs {
 		modifierFuncs[k] = v
 	}
+	recordTransformerFuncs := make([]RecordTransformerFunc, len(m.recordTransformerFuncs))
+	copy(recordTransformerFuncs, m.recordTransformerFuncs)
 	w := &modifierWriter{w: m.w.w}
 	return &Middleware{
-		modifierFuncs: modifierFuncs,
-		h:             m.h,
-		w:             w,
+		modifierFuncs:          modifierFuncs,
+		recordTransformerFuncs: recordTransformerFuncs,
+		h:                      m.h,
+		w:                      w,
 	}
 }
 
