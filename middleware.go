@@ -64,6 +64,7 @@ func Color(attr ...color.Attribute) ModifierFunc {
 type modifierWriter struct {
 	f ModifierFunc
 	w io.Writer
+	sync.Mutex
 }
 
 func (w *modifierWriter) Write(b []byte) (int, error) {
@@ -89,7 +90,6 @@ type Middleware struct {
 	recordTransformerFuncs []RecordTransformerFunc
 	h                      slog.Handler
 	w                      *modifierWriter
-	mu                     sync.Mutex
 }
 
 func NewMiddleware[H slog.Handler](f func(io.Writer, *slog.HandlerOptions) H, opts MiddlewareOptions) *Middleware {
@@ -115,28 +115,25 @@ func (m *Middleware) Handle(ctx context.Context, record slog.Record) error {
 	for _, f := range m.recordTransformerFuncs {
 		record = f(record)
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.w.Lock()
+	defer m.w.Unlock()
 	m.w.SetModifierFunc(m.modifierFuncs[record.Level])
 	return h.Handle(ctx, record)
 }
 
 // Clone returns a new Middleware with the same Handler and modifierFuncs.
 func (m *Middleware) Clone() *Middleware {
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	modifierFuncs := make(map[slog.Level]ModifierFunc, len(m.modifierFuncs))
 	for k, v := range m.modifierFuncs {
 		modifierFuncs[k] = v
 	}
 	recordTransformerFuncs := make([]RecordTransformerFunc, len(m.recordTransformerFuncs))
 	copy(recordTransformerFuncs, m.recordTransformerFuncs)
-	w := &modifierWriter{w: m.w.w}
 	return &Middleware{
 		modifierFuncs:          modifierFuncs,
 		recordTransformerFuncs: recordTransformerFuncs,
 		h:                      m.h,
-		w:                      w,
+		w:                      m.w,
 	}
 }
 
