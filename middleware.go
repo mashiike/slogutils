@@ -10,45 +10,6 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-type RecordTransformerFunc func(slog.Record) slog.Record
-
-func DefaultAttrs(args ...any) func(slog.Record) slog.Record {
-	attrs := argsToAttrs(args)
-	return func(r slog.Record) slog.Record {
-		exits := make(map[string]bool, len(attrs))
-		r.Attrs(func(a slog.Attr) bool {
-			exits[a.Key] = true
-			return true
-		})
-		notExits := make([]slog.Attr, 0, len(attrs))
-		for _, a := range attrs {
-			if !exits[a.Key] {
-				notExits = append(notExits, a)
-			}
-		}
-		r.AddAttrs(notExits...)
-		return r
-	}
-}
-
-func DropAttrs(keys ...string) func(slog.Record) slog.Record {
-	return func(r slog.Record) slog.Record {
-		attrs := make([]slog.Attr, 0, len(keys))
-		r.Attrs(func(a slog.Attr) bool {
-			for _, key := range keys {
-				if a.Key == key {
-					return true
-				}
-			}
-			attrs = append(attrs, a)
-			return true
-		})
-		c := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
-		c.AddAttrs(attrs...)
-		return c
-	}
-}
-
 type ModifierFunc func([]byte) []byte
 
 func Color(attr ...color.Attribute) ModifierFunc {
