@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"strings"
 	"testing"
 
@@ -224,4 +225,66 @@ func jsonEqualSlice(a, b []interface{}) bool {
 		}
 	}
 	return true
+}
+
+func TestMiddleware__WithConvertLegacyLevel(t *testing.T) {
+	color.NoColor = true
+
+	buf := new(bytes.Buffer)
+	middleware := NewMiddleware(
+		slog.NewJSONHandler,
+		MiddlewareOptions{
+			RecordTransformerFuncs: []RecordTransformerFunc{
+				ConvertLegacyLevel(
+					map[string]slog.Level{
+						"debug": slog.LevelDebug,
+						"info":  slog.LevelInfo,
+						"warn":  slog.LevelWarn,
+						"error": slog.LevelError,
+					}, true,
+				),
+			},
+			Writer: buf,
+			HandlerOptions: &slog.HandlerOptions{
+				Level: slog.LevelInfo,
+			},
+		},
+	)
+	logger := slog.New(middleware)
+	defaultWriter := log.Default().Writer()
+	defer func() {
+		log.SetOutput(defaultWriter)
+	}()
+	slog.SetDefault(logger)
+	log.Println("[warn] foo")
+	log.Println("[error] bar")
+	log.Println("[debug] baz")
+	log.Println("[info] buzz")
+	log.Println("[warn] buzz")
+	result := buf.String()
+	expected := []string{
+		`{"level":"WARN","msg":"foo"}`,
+		`{"level":"ERROR","msg":"bar"}`,
+		`{"level":"INFO","msg":"buzz"}`,
+		`{"level":"WARN","msg":"buzz"}`,
+	}
+	actual := strings.Split(result, "\n")
+	if len(expected) != len(actual)-1 {
+		t.Fatalf("expected %d lines, got %d lines", len(expected), len(actual))
+	}
+
+	for i := range expected {
+		var actualObj, expectedObj map[string]interface{}
+		if err := json.Unmarshal([]byte(actual[i]), &actualObj); err != nil {
+			t.Fatalf("failed to unmarshal actual %q: %s", actual[i], err)
+		}
+		if err := json.Unmarshal([]byte(expected[i]), &expectedObj); err != nil {
+			t.Fatalf("failed to unmarshal expected %q: %s", expected[i], err)
+		}
+		delete(actualObj, "time")
+		if !jsonEqual(actualObj, expectedObj) {
+			t.Errorf("expected %q, got %q", expected[i], actual[i])
+		}
+	}
+	t.Log(result)
 }

@@ -73,8 +73,14 @@ func (m *Middleware) Handle(ctx context.Context, record slog.Record) error {
 	if attrs, ok := attrsFromContext(ctx); ok {
 		h = h.WithAttrs(attrs)
 	}
+	l := record.Level
 	for _, f := range m.recordTransformerFuncs {
 		record = f(record)
+	}
+	if l != record.Level {
+		if !m.Enabled(ctx, record.Level) {
+			return nil
+		}
 	}
 	m.w.Lock()
 	defer m.w.Unlock()
