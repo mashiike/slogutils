@@ -3,10 +3,10 @@ package slogutils
 import (
 	"context"
 	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/fatih/color"
-	"golang.org/x/exp/slog"
 )
 
 var levels []slog.Level

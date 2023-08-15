@@ -1,10 +1,9 @@
 package slogutils
 
 import (
+	"log/slog"
 	"testing"
 	"time"
-
-	"golang.org/x/exp/slog"
 )
 
 func TestDefaultAttrs(t *testing.T) {

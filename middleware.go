@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"sync"
 
 	"github.com/fatih/color"
-	"golang.org/x/exp/slog"
 )
 
 type ModifierFunc func([]byte) []byte

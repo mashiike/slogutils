@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"strings"
 	"testing"
 
 	"github.com/fatih/color"
-	"golang.org/x/exp/slog"
 )
 
 func TestMiddleware__WithColor(t *testing.T) {
@@ -33,10 +33,10 @@ func TestMiddleware__WithColor(t *testing.T) {
 	)
 	logger := slog.New(middleware)
 	ctx := With(context.Background(), slog.Int64("request_id", 12))
-	logger.WarnCtx(ctx, "foo")
-	logger.ErrorCtx(ctx, "bar")
-	logger.DebugCtx(ctx, "baz")
-	logger.WarnCtx(ctx, "buzz")
+	logger.WarnContext(ctx, "foo")
+	logger.ErrorContext(ctx, "bar")
+	logger.DebugContext(ctx, "baz")
+	logger.WarnContext(ctx, "buzz")
 	result := buf.String()
 	expected := []string{
 		`{"level":"WARN","msg":"foo","request_id":12}`,
@@ -91,11 +91,11 @@ func TestMiddleware__WithRecordTransformer(t *testing.T) {
 	)
 	logger := slog.New(middleware)
 	ctx := With(context.Background(), slog.Int64("request_id", 12))
-	logger.WarnCtx(ctx, "foo")
-	logger.ErrorCtx(ctx, "bar", "secrets", "HIDDEN_VALUE")
-	logger.DebugCtx(ctx, "baz")
-	logger.InfoCtx(ctx, "buzz", slog.String("log_category", "special"))
-	logger.WarnCtx(ctx, "buzz")
+	logger.WarnContext(ctx, "foo")
+	logger.ErrorContext(ctx, "bar", "secrets", "HIDDEN_VALUE")
+	logger.DebugContext(ctx, "baz")
+	logger.InfoContext(ctx, "buzz", slog.String("log_category", "special"))
+	logger.WarnContext(ctx, "buzz")
 	result := buf.String()
 	expected := []string{
 		`{"level":"WARN","msg":"foo","request_id":12, "log_category": "general"}`,
