@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.2.2](https://github.com/mashiike/slogutils/compare/v0.2.1...v0.2.2) - 2023-08-15
+- update go 1.21 and with log/slogs by @mashiike in https://github.com/mashiike/slogutils/pull/8
+
 ## [v0.2.1](https://github.com/mashiike/slogutils/compare/v0.2.0...v0.2.1) - 2023-06-12
 - fix RecordTransformer; if LogLevel change, but not work after change filter by @mashiike in https://github.com/mashiike/slogutils/pull/6
 
