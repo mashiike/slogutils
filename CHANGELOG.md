@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.2.3](https://github.com/mashiike/slogutils/compare/v0.2.2...v0.2.3) - 2023-08-15
+- Revert "Release for v0.2.2" by @mashiike in https://github.com/mashiike/slogutils/pull/10
+
 ## [v0.2.1](https://github.com/mashiike/slogutils/compare/v0.2.0...v0.2.1) - 2023-06-12
 - fix RecordTransformer; if LogLevel change, but not work after change filter by @mashiike in https://github.com/mashiike/slogutils/pull/6
 
