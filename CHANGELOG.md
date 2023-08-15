@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.3.0](https://github.com/mashiike/slogutils/compare/v0.2.1...v0.3.0) - 2023-08-15
+- update go 1.21 and with log/slogs by @mashiike in https://github.com/mashiike/slogutils/pull/8
+- Revert "Release for v0.2.2" by @mashiike in https://github.com/mashiike/slogutils/pull/10
+- re update go 1.21 by @mashiike in https://github.com/mashiike/slogutils/pull/12
+
 ## [v0.2.2](https://github.com/mashiike/slogutils/compare/v0.2.1...v0.2.2) - 2023-08-15
 - update go 1.21 and with log/slogs by @mashiike in https://github.com/mashiike/slogutils/pull/8
 
