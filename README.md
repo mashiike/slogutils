@@ -55,6 +55,23 @@ func main() {
 }
 ```
 
+## Benchmark
+
+```bash
+$ go test -bench . -benchmem         
+goos: darwin
+goarch: arm64
+pkg: github.com/mashiike/slogutils
+BenchmarkSlogDefault-8                           3304731               343.8 ns/op             0 B/op          0 allocs/op
+BenchmarkLogOutput-8                            262371212                4.491 ns/op           0 B/op          0 allocs/op
+BenchmarkMiddleware-8                            2929984               415.4 ns/op            48 B/op          1 allocs/op
+BenchmarkMiddlewareWithRecordTrnasformer-8       1614752               741.3 ns/op           104 B/op          2 allocs/op
+BenchmarkLogOutputWithMiddleware-8              13597328                92.34 ns/op            0 B/op          0 allocs/op
+BenchmarkLogOutputWithRecordTransformer-8        1786766               672.7 ns/op             4 B/op          1 allocs/op
+PASS
+ok      github.com/mashiike/slogutils   10.145s
+```
+
 ## License
 This project is licensed under the MIT License - see the LICENSE(./LICENCE) file for details.
 

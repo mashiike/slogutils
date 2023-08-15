@@ -10,8 +10,10 @@ import (
 	"github.com/fatih/color"
 )
 
+// ModifierFunc is a function that modifies a log line.
 type ModifierFunc func([]byte) []byte
 
+// Color returns a ModifierFunc that colors the log line.
 func Color(attr ...color.Attribute) ModifierFunc {
 	c := color.New(attr...)
 	buf := &bytes.Buffer{}
@@ -39,13 +41,22 @@ func (w *modifierWriter) SetModifierFunc(f ModifierFunc) {
 	w.f = f
 }
 
+// MiddlewareOptions are options for creating a Middleware.
 type MiddlewareOptions struct {
-	ModifierFuncs          map[slog.Level]ModifierFunc
+	// ModifierFuncs is a map of log levels to ModifierFunc.
+	ModifierFuncs map[slog.Level]ModifierFunc
+
+	// RecordTransformerFuncs is a list of RecordTransformerFunc.
 	RecordTransformerFuncs []RecordTransformerFunc
-	Writer                 io.Writer
-	HandlerOptions         *slog.HandlerOptions
+
+	// Writer is the writer to write to.
+	Writer io.Writer
+
+	// HandlerOptions are options for the handler.
+	HandlerOptions *slog.HandlerOptions
 }
 
+// Middleware is a slog.Handler that modifies log lines.
 type Middleware[H slog.Handler] struct {
 	mu                     sync.RWMutex
 	modifierFuncs          map[slog.Level]ModifierFunc
@@ -88,12 +99,11 @@ func (m *Middleware[H]) Handle(ctx context.Context, record slog.Record) error {
 	if attrs, ok := attrsFromContext(ctx); ok {
 		h = h.WithAttrs(attrs)
 	}
-	l := record.Level
-	for _, f := range m.recordTransformerFuncs {
-		record = f(record)
-	}
-	if l != record.Level {
-		if !m.Enabled(ctx, record.Level) {
+	if len(m.recordTransformerFuncs) > 0 {
+		for _, f := range m.recordTransformerFuncs {
+			record = f(record)
+		}
+		if !m.h.Enabled(ctx, record.Level) {
 			return nil
 		}
 	}
@@ -124,6 +134,9 @@ func (m *Middleware[H]) Clone() *Middleware[H] {
 func (m *Middleware[H]) Enabled(ctx context.Context, l slog.Level) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if len(m.recordTransformerFuncs) > 0 {
+		return true
+	}
 	return m.h.Enabled(ctx, l)
 }
 
