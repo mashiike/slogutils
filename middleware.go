@@ -46,29 +46,44 @@ type MiddlewareOptions struct {
 	HandlerOptions         *slog.HandlerOptions
 }
 
-type Middleware struct {
+type Middleware[H slog.Handler] struct {
+	mu                     sync.RWMutex
 	modifierFuncs          map[slog.Level]ModifierFunc
 	recordTransformerFuncs []RecordTransformerFunc
+	opts                   MiddlewareOptions
 	h                      slog.Handler
 	w                      *modifierWriter
+	f                      func(io.Writer, *slog.HandlerOptions) H
 }
 
-func NewMiddleware[H slog.Handler](f func(io.Writer, *slog.HandlerOptions) H, opts MiddlewareOptions) *Middleware {
+func NewMiddleware[H slog.Handler](f func(io.Writer, *slog.HandlerOptions) H, opts MiddlewareOptions) *Middleware[H] {
 	if opts.ModifierFuncs == nil {
 		opts.ModifierFuncs = map[slog.Level]ModifierFunc{}
 	}
 	w := &modifierWriter{w: opts.Writer}
 	h := f(w, opts.HandlerOptions)
-	return &Middleware{
+	return &Middleware[H]{
 		modifierFuncs:          opts.ModifierFuncs,
 		recordTransformerFuncs: opts.RecordTransformerFuncs,
 		h:                      h,
 		w:                      w,
+		f:                      f,
+		opts:                   opts,
 	}
 }
 
+func (m *Middleware[H]) SetMinLevel(l slog.Leveler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.opts.HandlerOptions.Level = l
+	h := m.f(m.w, m.opts.HandlerOptions)
+	m.h = h
+}
+
 // Handle implements slog.Handler.
-func (m *Middleware) Handle(ctx context.Context, record slog.Record) error {
+func (m *Middleware[H]) Handle(ctx context.Context, record slog.Record) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	h := m.h
 	if attrs, ok := attrsFromContext(ctx); ok {
 		h = h.WithAttrs(attrs)
@@ -89,14 +104,16 @@ func (m *Middleware) Handle(ctx context.Context, record slog.Record) error {
 }
 
 // Clone returns a new Middleware with the same Handler and modifierFuncs.
-func (m *Middleware) Clone() *Middleware {
+func (m *Middleware[H]) Clone() *Middleware[H] {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	modifierFuncs := make(map[slog.Level]ModifierFunc, len(m.modifierFuncs))
 	for k, v := range m.modifierFuncs {
 		modifierFuncs[k] = v
 	}
 	recordTransformerFuncs := make([]RecordTransformerFunc, len(m.recordTransformerFuncs))
 	copy(recordTransformerFuncs, m.recordTransformerFuncs)
-	return &Middleware{
+	return &Middleware[H]{
 		modifierFuncs:          modifierFuncs,
 		recordTransformerFuncs: recordTransformerFuncs,
 		h:                      m.h,
@@ -104,17 +121,23 @@ func (m *Middleware) Clone() *Middleware {
 	}
 }
 
-func (m *Middleware) Enabled(ctx context.Context, l slog.Level) bool {
+func (m *Middleware[H]) Enabled(ctx context.Context, l slog.Level) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.h.Enabled(ctx, l)
 }
 
-func (m *Middleware) WithAttrs(as []slog.Attr) slog.Handler {
+func (m *Middleware[H]) WithAttrs(as []slog.Attr) slog.Handler {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	c := m.Clone()
 	c.h = c.h.WithAttrs(as)
 	return c
 }
 
-func (m *Middleware) WithGroup(name string) slog.Handler {
+func (m *Middleware[H]) WithGroup(name string) slog.Handler {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	c := m.Clone()
 	c.h = c.h.WithGroup(name)
 	return c

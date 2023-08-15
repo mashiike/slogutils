@@ -72,6 +72,68 @@ func TestMiddleware__WithColor(t *testing.T) {
 	t.Log(result)
 }
 
+func TestMiddleware__SetMinLevel(t *testing.T) {
+	color.NoColor = true
+	buf := new(bytes.Buffer)
+	middleware := NewMiddleware(
+		slog.NewJSONHandler,
+		MiddlewareOptions{
+			Writer: buf,
+			HandlerOptions: &slog.HandlerOptions{
+				Level: slog.LevelInfo,
+			},
+		},
+	)
+	logger := slog.New(middleware)
+	ctx := With(context.Background(), slog.Int64("request_id", 12))
+	logger.ErrorContext(ctx, "bar")
+	logger.DebugContext(ctx, "baz")
+	logger.InfoContext(ctx, "buzz")
+	logger.WarnContext(ctx, "buzz")
+	result := buf.String()
+	expected := []string{
+		`{"level":"ERROR","msg":"bar","request_id":12}`,
+		`{"level":"INFO","msg":"buzz","request_id":12}`,
+		`{"level":"WARN","msg":"buzz","request_id":12}`,
+	}
+	actual := strings.Split(result, "\n")
+	if len(expected) != len(actual)-1 {
+		t.Fatalf("expected %d lines, got %d lines", len(expected), len(actual))
+	}
+
+	buf.Reset()
+	middleware.SetMinLevel(slog.LevelDebug)
+	logger.ErrorContext(ctx, "bar")
+	logger.DebugContext(ctx, "baz")
+	logger.InfoContext(ctx, "buzz")
+	logger.WarnContext(ctx, "buzz")
+	result = buf.String()
+	expected = []string{
+		`{"level":"ERROR","msg":"bar","request_id":12}`,
+		`{"level":"DEBUG","msg":"baz","request_id":12}`,
+		`{"level":"INFO","msg":"buzz","request_id":12}`,
+		`{"level":"WARN","msg":"buzz","request_id":12}`,
+	}
+	actual = strings.Split(result, "\n")
+	if len(expected) != len(actual)-1 {
+		t.Fatalf("expected %d lines, got %d lines", len(expected), len(actual))
+	}
+	for i := range expected {
+		var actualObj, expectedObj map[string]interface{}
+		if err := json.Unmarshal([]byte(actual[i]), &actualObj); err != nil {
+			t.Fatalf("failed to unmarshal actual %q: %s", actual[i], err)
+		}
+		if err := json.Unmarshal([]byte(expected[i]), &expectedObj); err != nil {
+			t.Fatalf("failed to unmarshal expected %q: %s", expected[i], err)
+		}
+		delete(actualObj, "time")
+		if !jsonEqual(actualObj, expectedObj) {
+			t.Errorf("expected %q, got %q", expected[i], actual[i])
+		}
+	}
+	t.Log(result)
+}
+
 func TestMiddleware__WithRecordTransformer(t *testing.T) {
 	color.NoColor = true
 
