@@ -99,12 +99,11 @@ func (m *Middleware[H]) Handle(ctx context.Context, record slog.Record) error {
 	if attrs, ok := attrsFromContext(ctx); ok {
 		h = h.WithAttrs(attrs)
 	}
-	l := record.Level
-	for _, f := range m.recordTransformerFuncs {
-		record = f(record)
-	}
-	if l != record.Level {
-		if !m.Enabled(ctx, record.Level) {
+	if len(m.recordTransformerFuncs) > 0 {
+		for _, f := range m.recordTransformerFuncs {
+			record = f(record)
+		}
+		if !m.h.Enabled(ctx, record.Level) {
 			return nil
 		}
 	}
@@ -135,6 +134,9 @@ func (m *Middleware[H]) Clone() *Middleware[H] {
 func (m *Middleware[H]) Enabled(ctx context.Context, l slog.Level) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if len(m.recordTransformerFuncs) > 0 {
+		return true
+	}
 	return m.h.Enabled(ctx, l)
 }
 
