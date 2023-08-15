@@ -1,9 +1,8 @@
 package slogutils
 
 import (
+	"log/slog"
 	"strings"
-
-	"golang.org/x/exp/slog"
 )
 
 // RecordTransformerFunc is a function that transforms a slog.Record.

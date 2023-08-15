@@ -24,10 +24,10 @@ package main
 import (
 	"context"
 	"os"
+	"log/slog"
 
 	"github.com/fatih/color"
 	"github.com/mashiike/slogutils"
-	"golang.org/x/exp/slog"
 )
 
 func main() {
@@ -48,10 +48,10 @@ func main() {
 	)
 	slog.SetDefault(slog.New(middleware))
 	ctx := slogutils.With(context.Background(), slog.Int64("request_id", 12))
-	slog.WarnCtx(ctx, "foo")
-	slog.ErrorCtx(ctx, "bar")
-	slog.DebugCtx(ctx, "baz")
-	slog.WarnCtx(ctx, "buzz")
+	slog.WarnContext(ctx, "foo")
+	slog.ErrorContext(ctx, "bar")
+	slog.DebugContext(ctx, "baz")
+	slog.WarnContext(ctx, "buzz")
 }
 ```
 
